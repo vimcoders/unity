@@ -11,10 +11,10 @@ public class TcpClient : MonoBehaviour
     IPAddress ip;
     IPEndPoint ipEnd;
  
-    void Send(string sendStr)
+    void Send(byte[] data)
     {
-        byte[] d = encode(Encoding.ASCII.GetBytes(sendStr));
-        s.Send(d, d.Length, SocketFlags.None);
+        byte[] d = Encode(data);
+        this.s.Send(d, d.Length, SocketFlags.None);
     }
 
     /// <summary>
@@ -22,10 +22,10 @@ public class TcpClient : MonoBehaviour
     /// </summary>
     /// <param name="data"></param>
     /// <returns></returns>
-    public byte[] encode(byte[] data) {
-        UInt16 length = Convert.ToUInt16(data.Length+4);
-        UInt16 cmd = Convert.ToUInt16(0);
+    public byte[] Encode(byte[] data) {
         byte[] buffer = new byte[0];
+        UInt16 length = Convert.ToUInt16(4);
+        UInt16 cmd = Convert.ToUInt16(0);
         buffer = buffer.Concat(BitConverter.GetBytes(length).Reverse()).ToArray();
         buffer = buffer.Concat(BitConverter.GetBytes(cmd).Reverse()).ToArray();
         return buffer.Concat(data).ToArray();
@@ -33,8 +33,7 @@ public class TcpClient : MonoBehaviour
  
     void Close()
     {
-        if (s != null)
-            s.Close();
+        this.s?.Close();
         print("diconnect");
     }
  
@@ -50,7 +49,8 @@ public class TcpClient : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        Send("");
+        byte[] buffer = new byte[0];
+        Send(buffer);
         byte[] recvData = new byte[1024];
         int recvLen = s.Receive(recvData);
         if (recvLen == 0)
