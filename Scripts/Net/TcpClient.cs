@@ -8,6 +8,8 @@ using Pb;
 using System.Reflection;
 using System.Threading;
 
+public delegate void OnMessage(IMessage msg);
+
 public class Method
 {
     public ushort Id { get; set;}
@@ -29,7 +31,9 @@ public class TcpClient : MonoBehaviour
     int count;
     Thread t;
 
-    void Send(IMessage msg)
+    public OnMessage OnMessage;
+
+    int Send(IMessage msg)
     {
         byte[] payload = msg.ToByteArray();
         ushort length = Convert.ToUInt16(4 + payload.Length);
@@ -39,7 +43,7 @@ public class TcpClient : MonoBehaviour
         writeBuffer[2] = Convert.ToByte(method.Id >> 8);
         writeBuffer[3] = Convert.ToByte(method.Id);
         Buffer.BlockCopy(payload, 0, writeBuffer, 4, payload.Length);
-        s.Send(writeBuffer, length, SocketFlags.None);
+        return s.Send(writeBuffer, length, SocketFlags.None);
     }
 
     void Close()
@@ -87,7 +91,6 @@ public class TcpClient : MonoBehaviour
         }
     }
 
-
     /// <summary>
     /// Receive
     /// </summary>
@@ -110,6 +113,7 @@ public class TcpClient : MonoBehaviour
                 return;
             }
             IMessage iMessage = Methods[cmd].Response.Descriptor.Parser.ParseFrom(readBuffer, 4, length-4);
+            OnMessage?.Invoke(iMessage);
             Buffer.BlockCopy(readBuffer, length, readBuffer, 0, length);
             count -= length;
         }
