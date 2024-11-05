@@ -34,10 +34,10 @@ public class TcpClient : MonoBehaviour
         byte[] payload = msg.ToByteArray();
         ushort length = Convert.ToUInt16(4 + payload.Length);
         Method method = Methods.Where(t => t.Request.Descriptor.Name == msg.Descriptor.Name).First();
-        writeBuffer[0] = (byte)((length >> 8) & 0xFF);
-        writeBuffer[1] = (byte)(length & 0xFF);
-        writeBuffer[2] = (byte)((method.Id >> 8) & 0xFF);
-        writeBuffer[3] = (byte)(method.Id & 0xFF);
+        writeBuffer[0] = Convert.ToByte(length >> 8);
+        writeBuffer[1] = Convert.ToByte(length);
+        writeBuffer[2] = Convert.ToByte(method.Id >> 8);
+        writeBuffer[3] = Convert.ToByte(method.Id);
         Buffer.BlockCopy(payload, 0, writeBuffer, 4, payload.Length);
         s.Send(writeBuffer, length, SocketFlags.None);
     }
@@ -51,6 +51,7 @@ public class TcpClient : MonoBehaviour
     // Use this for initialization
     void Start()
     {
+        count = 0;
         readBuffer = new byte[1024];
         writeBuffer = new byte[1024];
         Methods = new Method[]{new() {
@@ -71,46 +72,40 @@ public class TcpClient : MonoBehaviour
         ipEnd = new IPEndPoint(ip, 9600);
         s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         s.Connect(ipEnd);
-        t = new Thread(new ThreadStart(Receive));
+        t = new Thread(new ThreadStart(StartReceive));
         t.Start();
     }
+
+    /// <summary>
+    /// StartReceive
+    /// </summary>
+    void StartReceive()
+    {
+        while (true)
+        {
+           Receive();
+        }
+    }
+
 
     /// <summary>
     /// Receive
     /// </summary>
     void Receive()
     {
-        while (true)
-        {
-           receive();
-        }
-    }
-
-
-    /// <summary>
-    /// receive
-    /// </summary>
-    void receive()
-    {
-        int len = s.Receive(readBuffer, count, readBuffer.Length, SocketFlags.None);
+        int len = s.Receive(readBuffer, count, readBuffer.Length-count, SocketFlags.None);
         if (len == 0)
         {
             return;
         }
         count += len;
         while (count >= 4) {
-            ushort length = 0;
-            length |= readBuffer[0];
-            length <<= 8;
-            length |= readBuffer[1];
+            ushort length = Convert.ToUInt16((readBuffer[0]<<8)|readBuffer[1]);;
             if (count < length) 
             {
                 return;
             }
-            ushort cmd = 0;
-            cmd |= readBuffer[2];
-            cmd <<= 8;
-            cmd |= readBuffer[3];
+            ushort cmd = Convert.ToUInt16((readBuffer[2]<<8)|readBuffer[3]);
             if (cmd >= Methods.Length) {
                 return;
             }
