@@ -1,7 +1,6 @@
 using UnityEngine;
 using System.Net;
 using System.Net.Sockets;
-using System;
 using System.Linq;
 using Google.Protobuf;
 using System.Reflection;
@@ -9,6 +8,7 @@ using System.Threading;
 using System.IO;
 using System.Text;
 using Pb;
+using System;
 
 [System.Serializable]
 public class Response<T> {
@@ -50,29 +50,27 @@ public class TcpClient : MonoBehaviour
     Method[] Methods;
     byte[] readBuffer;
     byte[] writeBuffer;
-    int count;
+    int r, w;
     Thread t;
 
     public OnMessage OnMessage;
 
+    /// <summary>
+    /// Send
+    /// </summary>
+    /// <param name="msg"></param>
+    /// <returns></returns>
     int Send(IMessage msg)
     {
-        byte[] payload = msg.ToByteArray();
-        ushort length = Convert.ToUInt16(4 + payload.Length);
+        var size = msg.CalculateSize();
+        ushort length = Convert.ToUInt16(4 + size);
         Method method = Methods.Where(t => t.Request.Descriptor.Name == msg.Descriptor.Name).First();
         writeBuffer[0] = Convert.ToByte(length >> 8);
         writeBuffer[1] = Convert.ToByte(length);
         writeBuffer[2] = Convert.ToByte(method.Id >> 8);
         writeBuffer[3] = Convert.ToByte(method.Id);
-        Buffer.BlockCopy(payload, 0, writeBuffer, 4, payload.Length);
+        msg.WriteTo(new Span<byte>(writeBuffer, 4, size));
         return s.Send(writeBuffer, length, SocketFlags.None);
-    }
-
-    void Close()
-    {
-        s?.Close();
-        s?.Dispose();
-        t?.Join();
     }
 
     /// <summary>
@@ -80,27 +78,32 @@ public class TcpClient : MonoBehaviour
     /// </summary>
     void Receive()
     {
-        int len = s.Receive(readBuffer, count, readBuffer.Length-count, SocketFlags.None);
+        int len = s.Receive(readBuffer, w, readBuffer.Length-w, SocketFlags.None);
         if (len == 0)
         {
             return;
         }
-        count += len;
-        while (count >= 4) {
-            ushort length = Convert.ToUInt16((readBuffer[0]<<8)|readBuffer[1]);;
-            if (count < length) 
+        w += len;
+        while (w-r >= 4) {
+            ushort length = Convert.ToUInt16((readBuffer[r]<<8)|readBuffer[r+1]);;
+            if (w-r < length) 
             {
-                return;
+                break;
             }
-            ushort cmd = Convert.ToUInt16((readBuffer[2]<<8)|readBuffer[3]);
+            ushort cmd = Convert.ToUInt16((readBuffer[r+2]<<8)|readBuffer[r+3]);
             if (cmd >= Methods.Length) {
-                return;
+                break;
             }
-            IMessage iMessage = Methods[cmd].Response.Descriptor.Parser.ParseFrom(readBuffer, 4, length-4);
+            IMessage iMessage = Methods[cmd].Response.Descriptor.Parser.ParseFrom(readBuffer, r+4, length-4);
             OnMessage?.Invoke(iMessage);
-            Buffer.BlockCopy(readBuffer, length, readBuffer, 0, length);
-            count -= length;
+            r += length;
         }
+        if (w > r)
+        {
+            Buffer.BlockCopy(readBuffer, r, readBuffer, 0, w-r);
+        }
+        w -= r;
+        r = 0;
     }
 
     // Use this for initialization
@@ -124,9 +127,9 @@ public class TcpClient : MonoBehaviour
         var loginResponse = JsonUtility.FromJson<Response<PassportLoginResponse>>(responseJson);
         var types = Assembly.GetExecutingAssembly().GetTypes().Where(t => t.Namespace == "Pb");
         this.Methods = new Method[0];
-        this.count = 0;
         this.readBuffer = new byte[1024];
         this.writeBuffer = new byte[1024];
+        Debug.Log("loginResponse"+JsonUtility.ToJson(loginResponse));
         for (int i = 0; i < loginResponse.data.methods.Length; i++)
         {
             var request = types.Where(t => t.Name == loginResponse.data.methods[i].RequestName).First();
@@ -143,6 +146,16 @@ public class TcpClient : MonoBehaviour
         s.Connect(ipEnd);
         t = new Thread(new ThreadStart(StartReceive));
         t.Start();
+    }
+
+    /// <summary>
+    /// Close
+    /// </summary>
+    void Close()
+    {
+        s?.Close();
+        s?.Dispose();
+        t?.Join();
     }
 
     /// <summary>
@@ -168,8 +181,12 @@ public class TcpClient : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        var request = new PingRequest(){Message = ByteString.CopyFromUtf8("Hello")};
-        Send(request);
+        var n = UnityEngine.Random.Range(1, 10000);
+        for (int i = 0; i < n; i++) 
+        {
+            var request = new PingRequest(){Message = ByteString.CopyFromUtf8("HelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorld")};
+            Send(request);
+        }
     }
 
     void OnApplicationQuit()
