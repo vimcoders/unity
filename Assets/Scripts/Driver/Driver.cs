@@ -1,22 +1,24 @@
 using Google.Protobuf;
+using System;
+using System.Text.Json;
 
 [System.Serializable]
 public class Response<T> {
-    public int code;
-    public string message;
-    public T data;
+    public int Code;
+    public string Message;
+    public T Data;
 }
 
 [System.Serializable]
 public class PassportLoginRequest {
 	public string Passport;
-	public string Pwd;      
+	public string Pwd;
 }
 
 [System.Serializable]
 public class PassportLoginResponse {
-	public string token;
-	public Method[] methods;
+	public string Token;
+	public Method[] Methods;
 }
 
 [System.Serializable]

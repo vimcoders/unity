@@ -7,26 +7,24 @@ using System.Threading;
 using System;
 
 
-public class ProtobufTcpClient 
+public class TcpClient 
 {
     readonly Socket s;
     readonly Method[] Methods;
     byte[] readBuffer;
     byte[] writeBuffer;
     int r, w;
-    Thread t;
+    Thread Thread;
 
-    public ProtobufTcpClient(IPAddress ip, IPEndPoint ipEnd, Method[] Methods)
+    public TcpClient(IPEndPoint ipEnd, Method[] Methods)
     {
         this.Methods = Methods;
         this.readBuffer = new byte[1024];
         this.writeBuffer = new byte[1024];
-        ip = IPAddress.Parse("127.0.0.1");
-        ipEnd = new IPEndPoint(ip, 9600);
         s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         s.Connect(ipEnd);
-        t = new Thread(new ThreadStart(StartReceive));
-        t.Start();
+        Thread = new Thread(new ThreadStart(StartReceive));
+        Thread.Start();
     }
 
     public OnMessage OnMessage;
@@ -89,7 +87,7 @@ public class ProtobufTcpClient
     {
         s?.Close();
         s?.Dispose();
-        t?.Join();
+        Thread?.Join();
     }
 
     /// <summary>

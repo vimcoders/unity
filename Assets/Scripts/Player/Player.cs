@@ -10,21 +10,17 @@ using Pb;
 
 public class Player : MonoBehaviour
 {
+    string url;
     Method[] Methods;
     IPAddress ip;
     IPEndPoint ipEnd;
+    //ProtobufTcpClient tcpClient;
+    UdpClient udpClient;
 
-    ProtobufTcpClient tcpClient;
-
-    public Player()
+    void  Start() 
     {
         Methods = new Method[0];
-    }
-
-    // Start is called before the first frame update
-    void Start()
-    {
-         string url = "http://127.0.0.1:9800/api/v1/passport/login";
+        url = "http://127.0.0.1:9800/api/v1/passport/login";
         string loginRequest = JsonUtility.ToJson(new PassportLoginRequest() {
             Passport = Guid.NewGuid().ToString(),
             Pwd = Guid.NewGuid().ToString(),
@@ -38,25 +34,27 @@ public class Player : MonoBehaviour
         writer.Write(loginRequestBytes, 0, loginRequestBytes.Length);
         var httpResponse = (HttpWebResponse)httpRequest.GetResponse();
         using var reader = new StreamReader(httpResponse.GetResponseStream(), Encoding.UTF8);
-        string responseJson = reader.ReadToEnd();
-        var loginResponse = JsonUtility.FromJson<Response<PassportLoginResponse>>(responseJson);
+        var responseBytes = reader.ReadToEnd();
+        Debug.Log("responseBytes"+responseBytes);
+        var loginResponse = JsonUtility.FromJson<Response<PassportLoginResponse>>(responseBytes);
         var types = Assembly.GetExecutingAssembly().GetTypes().Where(t => t.Namespace == "Pb");
-        this.Methods = new Method[0];
         Debug.Log("loginResponse"+JsonUtility.ToJson(loginResponse));
-        for (int i = 0; i < loginResponse.data.methods.Length; i++)
+        for (int i = 0; i < loginResponse.Data.Methods.Length; i++)
         {
-            var request = types.Where(t => t.Name == loginResponse.data.methods[i].RequestName).First();
-            var response = types.Where(t => t.Name == loginResponse.data.methods[i].ResponseName).First();
+            var request = types.Where(t => t.Name == loginResponse.Data.Methods[i].RequestName).First();
+            var response = types.Where(t => t.Name == loginResponse.Data.Methods[i].ResponseName).First();
             Methods = Methods.Append(new Method{
-                Id = loginResponse.data.methods[i].Id,
+                Id = loginResponse.Data.Methods[i].Id,
                 Request = (IMessage)Activator.CreateInstance(request),
                 Response = (IMessage)Activator.CreateInstance(response),
             }).ToArray();
         }
-        ip = IPAddress.Parse("127.0.0.1");
-        ipEnd = new IPEndPoint(ip, 9600);
-        tcpClient = new ProtobufTcpClient(ip, ipEnd, Methods);
-        tcpClient.OnMessage += OnMessage;
+        //ip = IPAddress.Parse("127.0.0.1");
+        ipEnd = new IPEndPoint(IPAddress.Any, 49600);
+        //tcpClient = new ProtobufTcpClient(ipEnd, Methods);
+        this.udpClient = new UdpClient(ipEnd, Methods);
+        udpClient.OnMessage += OnMessage;
+        Debug.Log(this.udpClient);
     }
 
     // Update is called once per frame
@@ -66,7 +64,7 @@ public class Player : MonoBehaviour
         for (int i = 0; i < n; i++) 
         {
             var request = new PingRequest(){Message = ByteString.CopyFromUtf8("HelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorldHelloWorld")};
-            tcpClient.Send(request);
+            udpClient.Send(request);
         }
     }
 
@@ -76,6 +74,6 @@ public class Player : MonoBehaviour
 
     void OnApplicationQuit()
     {
-        tcpClient?.Close();
+        udpClient?.Close();
     }
 }
